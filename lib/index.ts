@@ -1,0 +1,54 @@
+import type { StashDriver } from './drivers';
+import { InMemoryDriver } from './drivers/memory';
+import type { StashDuration, StashOptions } from './types';
+
+/**
+ * Helper type for a value that may be asynchronously resolved.
+ */
+type Awaitable<T> = Promise<T> | T;
+
+/**
+ * Stash is a simple key-value store with expiration support.
+ *
+ * It allows you to store values with a specific duration and automatically
+ * handles expiration and cache invalidation.
+ *
+ * The default driver is {@link InMemoryDriver}.
+ */
+export class Stash {
+	#_base_key: string;
+	#_driver: StashDriver;
+	constructor(base_key: string, opts?: StashOptions) {
+		this.#_base_key = base_key;
+		this.#_driver = opts?.driver ?? new InMemoryDriver();
+	}
+
+	#_get<T>(key: string, duration: StashDuration) {
+		return this.#_driver.get<T>(`${this.#_base_key}~${key}`, duration);
+	}
+
+	#_set<T>(key: string, duration: StashDuration, value: T) {
+		return this.#_driver.set(`${this.#_base_key}~${key}`, duration, value);
+	}
+
+	/**
+	 * Wrap the method you'd like to cache.
+	 */
+	async wrap<T>(key: string, duration: StashDuration, fn: () => Awaitable<T>) {
+		const { data, in_grace_period } = await this.#_get<T>(key, duration);
+		if (data) {
+			if (in_grace_period) {
+				(async () => fn())()
+					.then((res) => this.#_set(key, duration, res))
+					.catch((err) => console.error('[Grace Period Refresh Error]', err));
+			}
+			return data;
+		}
+		const res = await fn();
+		return this.#_set(key, duration, res);
+	}
+}
+
+export * from './drivers';
+export * from './types';
+
