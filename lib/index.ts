@@ -1,11 +1,5 @@
-import type { StashDriver } from './drivers';
-import { InMemoryDriver } from './drivers/memory';
-import type { StashDuration, StashOptions } from './types';
-
-/**
- * Helper type for a value that may be asynchronously resolved.
- */
-type Awaitable<T> = Promise<T> | T;
+import { type StashDriver, InMemoryDriver } from './drivers';
+import type { Awaitable, StashDuration, StashOptions } from './types';
 
 /**
  * Stash is a simple key-value store with expiration support.
@@ -34,7 +28,7 @@ export class Stash {
 	/**
 	 * Wrap the method you'd like to cache.
 	 */
-	async wrap<T>(key: string, duration: StashDuration, fn: () => Awaitable<T>) {
+	async wrap<T>(key: string, duration: StashDuration, fn: () => Awaitable<T>): Promise<T> {
 		const { data, in_grace_period } = await this.#_get<T>(key, duration);
 		if (data) {
 			if (in_grace_period) {

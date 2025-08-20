@@ -1,0 +1,12 @@
+{
+	"entryPoints": ["lib/index.ts"],
+	"out": "docs",
+	"plugin": ["typedoc-github-theme"],
+	"excludeExternals": true,
+	"externalSymbolLinkMappings": {},
+	"navigationLinks": {
+		"GitHub": "https://github.com/warsam-e/stash",
+		"My Site": "https://warsame.me"
+	},
+	"sort": ["documents-first", "kind"]
+}

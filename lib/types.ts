@@ -1,6 +1,11 @@
 import type { StashDriver } from './drivers';
 
 /**
+ * Helper type for a value that may be asynchronously resolved.
+ */
+export type Awaitable<T> = Promise<T> | T;
+
+/**
  * Options for configuring the stash behavior.
  */
 export interface StashOptions {

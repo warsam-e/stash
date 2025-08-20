@@ -1,6 +1,6 @@
 import { parseDate } from 'chrono-node';
 import type { StashDuration } from '../types';
-import { StashDriver, type StashDriverResponse } from './base';
+import { StashDriver, type StashDriverOptions, type StashDriverResponse } from './base';
 
 interface _InMemoryDriverData {
 	response: string;
@@ -17,9 +17,8 @@ interface _InMemoryDriverData {
 export class InMemoryDriver extends StashDriver {
 	#_data = new Map<string, _InMemoryDriverData>();
 
-	constructor() {
-		super();
-
+	constructor(opts?: StashDriverOptions) {
+		super(opts);
 		this.#_clean_handler();
 	}
 

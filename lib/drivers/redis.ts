@@ -1,7 +1,7 @@
 import { parseDate } from 'chrono-node';
 import { createClient } from 'redis';
 import type { StashDuration } from '../types';
-import { StashDriver, type StashDriverResponse } from './base';
+import { StashDriver, type StashDriverOptions, type StashDriverResponse } from './base';
 
 const _create_client = (url: string) => createClient({ url }).connect();
 type Client = Awaited<ReturnType<typeof _create_client>>;
@@ -14,14 +14,14 @@ type Client = Awaited<ReturnType<typeof _create_client>>;
 export class RedisDriver extends StashDriver {
 	#_client: Client;
 
-	private constructor(client: Client) {
-		super();
+	private constructor(client: Client, opts?: StashDriverOptions) {
+		super(opts);
 		this.#_client = client;
 	}
 
-	static async create(url: string) {
+	static async create(url: string, opts?: StashDriverOptions) {
 		const client = await _create_client(url);
-		return new RedisDriver(client);
+		return new RedisDriver(client, opts);
 	}
 
 	async get<T>(key: string, duration: StashDuration): Promise<StashDriverResponse<T>> {
