@@ -24,11 +24,11 @@ export class InMemoryDriver extends StashDriver {
 
 	async get<T>(key: string, duration: StashDuration): Promise<StashDriverResponse<T>> {
 		const existing = this.#_data.get(key);
-		if (!existing) return { in_grace_period: false };
+		if (!existing) return { data: null, in_grace_period: false };
 
 		if (existing.duration !== duration) {
 			this.#_data.delete(key);
-			return { in_grace_period: false };
+			return { data: null, in_grace_period: false };
 		}
 
 		const current_time = Date.now();
@@ -38,7 +38,7 @@ export class InMemoryDriver extends StashDriver {
 
 		if (has_expired && !in_grace_period) {
 			this.#_data.delete(key);
-			return { in_grace_period: false };
+			return { data: null, in_grace_period: false };
 		}
 
 		return { data: JSON.parse(existing.response) as T, in_grace_period };

@@ -26,17 +26,17 @@ export class RedisDriver extends StashDriver {
 
 	async get<T>(key: string, duration: StashDuration): Promise<StashDriverResponse<T>> {
 		const [response, _duration] = await this.#_client.hmGet(key, ['response', 'duration']);
-		if (!response || !_duration) return { in_grace_period: false };
+		if (!response || !_duration) return { data: null, in_grace_period: false };
 
 		if (_duration !== duration) {
 			console.log('[Duration mismatch]', key, _duration, duration);
 			await this.#_client.hDel(key, 'response');
 			await this.#_client.hDel(key, 'duration');
-			return { in_grace_period: false };
+			return { data: null, in_grace_period: false };
 		}
 
 		const ttl = await this.#_client.ttl(key);
-		if (ttl === -2) return { in_grace_period: false };
+		if (ttl === -2) return { data: null, in_grace_period: false };
 
 		const inGracePeriod = ttl > 0 && ttl <= this.grace_period;
 

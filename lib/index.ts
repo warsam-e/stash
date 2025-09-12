@@ -49,8 +49,8 @@ export class Stash {
 	/**
 	 * Get the cached value for the given key and duration.
 	 */
-	async get(key: string, duration: StashDuration) {
-		const r = await this.#_get(key, duration);
+	async get<T>(key: string, duration: StashDuration) {
+		const r = await this.#_get<T>(key, duration);
 		return r.data;
 	}
 
@@ -58,7 +58,7 @@ export class Stash {
 	 * Set the cached value for the given key and duration.
 	 */
 	async set<T>(key: string, duration: StashDuration, value: T) {
-		return this.#_set(key, duration, value);
+		return this.#_set<T>(key, duration, value);
 	}
 
 	/**
