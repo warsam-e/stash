@@ -25,6 +25,10 @@ export class Stash {
 		return this.#_driver.set(`${this.#_base_key}~${key}`, duration, value);
 	}
 
+	#_delete(key: string) {
+		return this.#_driver.delete(`${this.#_base_key}~${key}`);
+	}
+
 	/**
 	 * Wrap the method you'd like to cache.
 	 */
@@ -40,6 +44,28 @@ export class Stash {
 		}
 		const res = await fn();
 		return this.#_set(key, duration, res);
+	}
+
+	/**
+	 * Get the cached value for the given key and duration.
+	 */
+	async get(key: string, duration: StashDuration) {
+		const r = await this.#_get(key, duration);
+		return r.data;
+	}
+
+	/**
+	 * Set the cached value for the given key and duration.
+	 */
+	async set<T>(key: string, duration: StashDuration, value: T) {
+		return this.#_set(key, duration, value);
+	}
+
+	/**
+	 * Delete the cached value for the given key.
+	 */
+	async delete(key: string) {
+		return this.#_delete(key);
 	}
 }
 

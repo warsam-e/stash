@@ -29,3 +29,15 @@ test('wrap calls fn again after duration mismatch', async () => {
 	await fn('in 2 hours');
 	expect(callCount).toBe(2);
 });
+
+test('get/set/delete correct value', async () => {
+	const key = 'mykey';
+	const duration = '1 hour later';
+	const value = 'myvalue';
+	await stash.set(key, duration, value);
+	const result = await stash.get(key, duration);
+	expect(result).toBe(value);
+	await stash.delete(key);
+	const deleted = await stash.get(key, duration);
+	expect(deleted).toBe(undefined);
+});

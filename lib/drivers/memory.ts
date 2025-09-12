@@ -59,6 +59,10 @@ export class InMemoryDriver extends StashDriver {
 		return value;
 	}
 
+	async delete(key: string): Promise<void> {
+		this.#_data.delete(key);
+	}
+
 	#_clean_handler = () => setInterval(this.#_clean.bind(this), 1000);
 
 	#_clean() {

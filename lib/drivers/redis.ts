@@ -55,4 +55,12 @@ export class RedisDriver extends StashDriver {
 		await this.#_client.expire(key, expiresSeconds + this.grace_period);
 		return value;
 	}
+
+	async delete(key: string): Promise<void> {
+		try {
+			await this.#_client.hDel(key, 'response');
+		} catch (error) {
+			console.error('[RedisDriver] Error deleting response:', error);
+		}
+	}
 }
