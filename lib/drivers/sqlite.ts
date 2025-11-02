@@ -1,33 +1,35 @@
+import { BunDB } from 'bun.db';
 import { parseDate } from 'chrono-node';
 import type { StashDuration } from '../types';
 import { StashDriver, type StashDriverOptions, type StashDriverResponse } from './base';
 
-interface _InMemoryDriverData {
-	response: string;
+interface _SQliteDriverData<T> {
+	response: T;
 	duration: StashDuration;
 	created_at: number;
 	expires_at: number;
 }
 
-/**
- * In-memory stash driver implementation.
- *
- * This driver stores data in memory and is suitable for testing and lightweight use cases.
- */
-export class InMemoryDriver extends StashDriver {
-	#_data = new Map<string, _InMemoryDriverData>();
+export class SQliteDriver extends StashDriver {
+	#_client: BunDB;
 
-	constructor(opts?: StashDriverOptions) {
+	private constructor(client: BunDB, opts?: StashDriverOptions) {
 		super(opts);
+		this.#_client = client;
 		this.#_clean_handler();
 	}
 
+	static create(path: string, opts?: StashDriverOptions) {
+		const client = new BunDB(path);
+		return new SQliteDriver(client, opts);
+	}
+
 	async get<T>(key: string, duration: StashDuration): Promise<StashDriverResponse<T>> {
-		const existing = this.#_data.get(key);
+		const existing = await this.#_client.get<_SQliteDriverData<T>>(key);
 		if (!existing) return { data: null, in_grace_period: false };
 
 		if (existing.duration !== duration) {
-			this.#_data.delete(key);
+			await this.#_client.delete(key);
 			return { data: null, in_grace_period: false };
 		}
 
@@ -37,11 +39,11 @@ export class InMemoryDriver extends StashDriver {
 		const in_grace_period = has_expired && current_time < grace_expire_at;
 
 		if (has_expired && !in_grace_period) {
-			this.#_data.delete(key);
+			await this.#_client.delete(key);
 			return { data: null, in_grace_period: false };
 		}
 
-		return { data: JSON.parse(existing.response) as T, in_grace_period };
+		return { data: existing.response, in_grace_period };
 	}
 
 	async set<T>(key: string, duration: StashDuration, value: T): Promise<T> {
@@ -50,8 +52,8 @@ export class InMemoryDriver extends StashDriver {
 		if (!expires_at_date) throw new Error('Invalid duration');
 		const expires_at = expires_at_date.getTime();
 
-		this.#_data.set(key, {
-			response: JSON.stringify(value),
+		await this.#_client.set(key, {
+			response: value,
 			duration,
 			created_at: now.getTime(),
 			expires_at,
@@ -60,22 +62,23 @@ export class InMemoryDriver extends StashDriver {
 	}
 
 	async delete(key: string): Promise<void> {
-		this.#_data.delete(key);
+		await this.#_client.delete(key);
 	}
 
 	async clear(): Promise<void> {
-		this.#_data.clear();
+		await this.#_client.deleteAll();
 	}
 
 	#_clean_handler = () => setInterval(this.#_clean.bind(this), 1000);
 
-	#_clean() {
+	async #_clean() {
 		const now = Date.now();
-		for (const [key, data] of this.#_data) {
-			const expired = data.expires_at < now;
-			const in_grace = expired && now < data.expires_at + this.grace_period;
+		const items = await this.#_client.all<_SQliteDriverData<unknown>>();
+		for (const item of items) {
+			const expired = item.value.expires_at < now;
+			const in_grace = expired && now < item.value.expires_at + this.grace_period;
 			if (!expired || in_grace) continue;
-			this.#_data.delete(key);
+			await this.#_client.delete(item.id);
 		}
 	}
 }

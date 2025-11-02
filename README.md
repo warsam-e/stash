@@ -29,3 +29,4 @@ data().then(console.log);
 
 - **InMemoryDriver**: The default driver, stores data in memory.
 - **RedisDriver**: Stores data in a Redis database.
+- **SqliteDriver**: Stores data in a SQLite file.

@@ -1,4 +1,4 @@
-import { type StashDriver, InMemoryDriver } from './drivers';
+import { InMemoryDriver, type StashDriver } from './drivers';
 import type { Awaitable, StashDuration, StashOptions } from './types';
 
 /**
@@ -67,8 +67,14 @@ export class Stash {
 	async delete(key: string) {
 		return this.#_delete(key);
 	}
+
+	/**
+	 * Clear all cached values.
+	 */
+	async clear() {
+		return this.#_driver.clear();
+	}
 }
 
 export * from './drivers';
 export * from './types';
-

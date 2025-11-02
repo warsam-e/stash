@@ -1,7 +1,10 @@
 import { expect, test } from 'bun:test';
-import { Stash } from './index';
+import { SQliteDriver, Stash } from './index';
 
-const stash = new Stash('test');
+const driver = SQliteDriver.create('test.sqlite');
+const stash = new Stash('test', { driver });
+
+stash.clear();
 
 test('wrap caches and returns value', async () => {
 	let callCount = 0;
@@ -39,5 +42,5 @@ test('get/set/delete correct value', async () => {
 	expect(result).toBe(value);
 	await stash.delete(key);
 	const deleted = await stash.get(key, duration);
-	expect(deleted).toBe(undefined);
+	expect(deleted).toBe(null);
 });

@@ -63,4 +63,8 @@ export class RedisDriver extends StashDriver {
 			console.error('[RedisDriver] Error deleting response:', error);
 		}
 	}
+
+	async clear(): Promise<void> {
+		await this.#_client.flushDb();
+	}
 }

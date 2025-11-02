@@ -1,7 +1,7 @@
 {
 	"name": "@warsam-e/stash",
 	"description": "A simple and flexible caching library for TypeScript",
-	"version": "1.1.0",
+	"version": "1.2.0",
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",
 	"types": "./dist/index.d.ts",
@@ -20,18 +20,20 @@
 		"build:lib": "tsdown",
 		"build:docs": "typedoc --options typedoc.json",
 		"build": "bun build:lib && bun build:docs",
-		"dev": "bun test --watch"
+		"dev": "bun test --watch",
+		"check": "bunx @biomejs/biome check"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.2.0",
-		"@types/bun": "1.2.21",
-		"tsdown": "0.15.1",
+		"@biomejs/biome": "2.3.2",
+		"@types/bun": "1.3.1",
+		"tsdown": "0.15.12",
 		"typedoc-github-theme": "0.3.1",
-		"typescript": "5.9.2"
+		"typescript": "5.9.3"
 	},
 	"dependencies": {
-		"chrono-node": "2.8.4",
-		"redis": "5.8.2"
+		"bun.db": "1.1.4",
+		"chrono-node": "2.9.0",
+		"redis": "5.9.0"
 	},
 	"repository": {
 		"type": "git",

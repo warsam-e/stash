@@ -22,4 +22,5 @@ export abstract class StashDriver {
 	abstract get<T>(key: string, duration: StashDuration): Promise<StashDriverResponse<T>>;
 	abstract set<T>(key: string, duration: StashDuration, value: T): Promise<T>;
 	abstract delete(key: string): Promise<void>;
+	abstract clear(): Promise<void>;
 }
