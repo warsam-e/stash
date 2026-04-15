@@ -1,7 +1,9 @@
 import { expect, test } from 'bun:test';
-import { SQliteDriver, Stash } from './index';
+import { MongoDBDriver, Stash } from './index';
 
-const driver = SQliteDriver.create('test.sqlite');
+const url = Bun.env.MONGODB_URI;
+if (!url) throw new Error('MONGODB_URI environment variable is not set');
+const driver = await MongoDBDriver.create(url, 'test');
 const stash = new Stash('test', { driver });
 
 stash.clear();
