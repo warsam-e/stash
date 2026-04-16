@@ -5,7 +5,7 @@ import { StashDriver, type StashDriverOptions, type StashDriverResponse } from '
 
 const schema = new Schema({
 	key: { type: String, required: true, unique: true },
-	response: { type: Schema.Types.Mixed, required: true },
+	response: { type: Schema.Types.Mixed },
 	duration: { type: String, required: true },
 	created_at: { type: Number, required: true },
 	expires_at: { type: Number, required: true },
