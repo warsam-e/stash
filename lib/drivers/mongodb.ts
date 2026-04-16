@@ -56,13 +56,17 @@ export class MongoDBDriver extends StashDriver {
 		if (!expires_at_date) throw new Error('Invalid duration');
 		const expires_at = expires_at_date.getTime();
 
-		await this.mongo_data.create({
-			key,
-			response: value,
-			duration,
-			created_at: now.getTime(),
-			expires_at,
-		});
+		await this.mongo_data.updateOne(
+			{ key },
+			{
+				key,
+				response: value,
+				duration,
+				created_at: now.getTime(),
+				expires_at,
+			},
+			{ upsert: true },
+		);
 
 		return value;
 	}
