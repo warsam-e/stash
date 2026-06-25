@@ -1,31 +1,40 @@
 import { parseDate } from 'chrono-node';
-import { connect, type InferSchemaType, type Model, model, Schema } from 'mongoose';
+import type mongoose from 'mongoose';
 import type { StashDuration } from '../types';
 import { StashDriver, type StashDriverOptions, type StashDriverResponse } from './base';
 
-const schema = new Schema({
-	key: { type: String, required: true, unique: true },
-	response: { type: Schema.Types.Mixed },
-	duration: { type: String, required: true },
-	created_at: { type: Number, required: true },
-	expires_at: { type: Number, required: true },
-});
-type MongoDataType = InferSchemaType<typeof schema>;
+type MongoModel = mongoose.Model<mongoose.InferSchemaType<ReturnType<typeof make_schema>>>;
+
+function make_schema(mongoose: typeof import('mongoose')) {
+	return new mongoose.Schema({
+		key: { type: String, required: true, unique: true },
+		response: { type: mongoose.Schema.Types.Mixed },
+		duration: { type: String, required: true },
+		created_at: { type: Number, required: true },
+		expires_at: { type: Number, required: true },
+	});
+}
 
 export class MongoDBDriver extends StashDriver {
-	mongo_data: Model<MongoDataType>;
+	private mongo_data: MongoModel;
 
-	private constructor(collection_name: string, opts?: StashDriverOptions) {
+	private constructor(mongo_data: MongoModel, opts?: StashDriverOptions) {
 		super(opts);
-		this.mongo_data = model('MongoData', schema, collection_name);
+		this.mongo_data = mongo_data;
 	}
 
 	static async create(url: string, collection_name: string, opts?: StashDriverOptions) {
-		await connect(url);
+		const mongoose = await import('mongoose');
 
-		const inst = new MongoDBDriver(collection_name, opts);
-		await inst.mongo_data.init();
-		return inst;
+		const schema = make_schema(mongoose);
+
+		await mongoose.connect(url);
+
+		const mongo_data = mongoose.models.MongoData ?? mongoose.model('MongoData', schema, collection_name);
+
+		await mongo_data.init();
+
+		return new MongoDBDriver(mongo_data, opts);
 	}
 
 	async get<T>(key: string, duration: StashDuration): Promise<StashDriverResponse<T>> {
@@ -47,14 +56,13 @@ export class MongoDBDriver extends StashDriver {
 			return { data: null, in_grace_period: false };
 		}
 
-		return { data: existing.response, in_grace_period };
+		return { data: existing.response as T, in_grace_period };
 	}
 
 	async set<T>(key: string, duration: StashDuration, value: T): Promise<T> {
 		const now = new Date();
 		const expires_at_date = parseDate(duration, now);
 		if (!expires_at_date) throw new Error('Invalid duration');
-		const expires_at = expires_at_date.getTime();
 
 		await this.mongo_data.updateOne(
 			{ key },
@@ -63,7 +71,7 @@ export class MongoDBDriver extends StashDriver {
 				response: value,
 				duration,
 				created_at: now.getTime(),
-				expires_at,
+				expires_at: expires_at_date.getTime(),
 			},
 			{ upsert: true },
 		);

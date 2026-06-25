@@ -1,10 +1,7 @@
 import { expect, test } from 'bun:test';
-import { MongoDBDriver, Stash } from './index';
+import { Stash } from './index';
 
-const url = Bun.env.MONGODB_URI;
-if (!url) throw new Error('MONGODB_URI environment variable is not set');
-const driver = await MongoDBDriver.create(url, 'test');
-const stash = new Stash('test', { driver });
+const stash = new Stash('test');
 
 stash.clear();
 
