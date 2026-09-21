@@ -1,7 +1,7 @@
 import { parseDate } from 'chrono-node';
 import { createClient } from 'redis';
-import type { StashDuration } from '../types';
-import { StashDriver, type StashDriverOptions, type StashDriverResponse } from './base';
+import type { StashDuration } from '../types.ts';
+import { StashDriver, type StashDriverOptions, type StashDriverResponse } from './base.ts';
 
 const _create_client = (url: string) => createClient({ url }).connect();
 type Client = Awaited<ReturnType<typeof _create_client>>;

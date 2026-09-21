@@ -1,4 +1,4 @@
-import type { StashDuration } from '../types';
+import type { StashDuration } from '../types.ts';
 
 /** Response from fetching data from a stash, used in implementing stash drivers. */
 export type StashDriverResponse<T> = { data: T | null; in_grace_period: boolean };

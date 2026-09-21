@@ -1,7 +1,7 @@
 import { parseDate } from 'chrono-node';
 import type mongoose from 'mongoose';
-import type { StashDuration } from '../types';
-import { StashDriver, type StashDriverOptions, type StashDriverResponse } from './base';
+import type { StashDuration } from '../types.ts';
+import { StashDriver, type StashDriverOptions, type StashDriverResponse } from './base.ts';
 
 type MongoModel = mongoose.Model<mongoose.InferSchemaType<ReturnType<typeof make_schema>>>;
 

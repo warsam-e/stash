@@ -1,6 +1,6 @@
 import { parseDate } from 'chrono-node';
-import type { StashDuration } from '../types';
-import { StashDriver, type StashDriverOptions, type StashDriverResponse } from './base';
+import type { StashDuration } from '../types.ts';
+import { StashDriver, type StashDriverOptions, type StashDriverResponse } from './base.ts';
 
 interface _InMemoryDriverData {
 	response: string;

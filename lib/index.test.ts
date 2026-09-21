@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { Stash } from './index';
+import { Stash } from './index.ts';
 
 const stash = new Stash('test');
 

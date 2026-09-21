@@ -1,5 +1,5 @@
-import { InMemoryDriver, type StashDriver } from './drivers';
-import type { Awaitable, StashDuration, StashOptions } from './types';
+import { InMemoryDriver, type StashDriver } from './drivers/index.ts';
+import type { Awaitable, StashDuration, StashOptions } from './types.ts';
 
 /**
  * Stash is a simple key-value store with expiration support.
@@ -76,5 +76,5 @@ export class Stash {
 	}
 }
 
-export * from './drivers';
-export * from './types';
+export * from './drivers/index.ts';
+export * from './types.ts';

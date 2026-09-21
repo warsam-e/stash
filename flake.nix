@@ -1,5 +1,5 @@
 {
-  description = "widgets dev env";
+  description = "stash dev env";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -12,7 +12,6 @@
         zsh
         bun
         biome
-        nodejs_22
       ];
     };
   };

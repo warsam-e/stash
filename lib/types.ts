@@ -1,4 +1,4 @@
-import type { StashDriver } from './drivers';
+import type { StashDriver } from './drivers/index.ts';
 
 /**
  * Helper type for a value that may be asynchronously resolved.
