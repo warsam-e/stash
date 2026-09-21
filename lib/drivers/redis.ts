@@ -12,11 +12,11 @@ type Client = Awaited<ReturnType<typeof _create_client>>;
  * This driver stores data in a Redis database and is suitable for production use cases.
  */
 export class RedisDriver extends StashDriver {
-	#_client: Client;
+	client: Client;
 
 	private constructor(client: Client, opts?: StashDriverOptions) {
 		super(opts);
-		this.#_client = client;
+		this.client = client;
 	}
 
 	static async create(url: string, opts?: StashDriverOptions) {
@@ -25,17 +25,17 @@ export class RedisDriver extends StashDriver {
 	}
 
 	async get<T>(key: string, duration: StashDuration): Promise<StashDriverResponse<T>> {
-		const [response, _duration] = await this.#_client.hmGet(key, ['response', 'duration']);
+		const [response, _duration] = await this.client.hmGet(key, ['response', 'duration']);
 		if (!response || !_duration) return { data: null, in_grace_period: false };
 
 		if (_duration !== duration) {
 			console.log('[Duration mismatch]', key, _duration, duration);
-			await this.#_client.hDel(key, 'response');
-			await this.#_client.hDel(key, 'duration');
+			await this.client.hDel(key, 'response');
+			await this.client.hDel(key, 'duration');
 			return { data: null, in_grace_period: false };
 		}
 
-		const ttl = await this.#_client.ttl(key);
+		const ttl = await this.client.ttl(key);
 		if (ttl === -2) return { data: null, in_grace_period: false };
 
 		const inGracePeriod = ttl > 0 && ttl <= this.grace_period;
@@ -50,21 +50,21 @@ export class RedisDriver extends StashDriver {
 		const expiresSeconds = Math.floor((expires_at - now) / 1000);
 		if (expiresSeconds <= 0) throw new Error('Invalid duration');
 
-		await this.#_client.hSet(key, 'response', JSON.stringify(value));
-		await this.#_client.hSet(key, 'duration', duration);
-		await this.#_client.expire(key, expiresSeconds + this.grace_period);
+		await this.client.hSet(key, 'response', JSON.stringify(value));
+		await this.client.hSet(key, 'duration', duration);
+		await this.client.expire(key, expiresSeconds + this.grace_period);
 		return value;
 	}
 
 	async delete(key: string): Promise<void> {
 		try {
-			await this.#_client.hDel(key, 'response');
+			await this.client.hDel(key, 'response');
 		} catch (error) {
 			console.error('[RedisDriver] Error deleting response:', error);
 		}
 	}
 
 	async clear(): Promise<void> {
-		await this.#_client.flushDb();
+		await this.client.flushDb();
 	}
 }
