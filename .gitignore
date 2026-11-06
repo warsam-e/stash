@@ -4,3 +4,4 @@ dist/
 .env*
 !.envrc
 .direnv/
+*.sqlite

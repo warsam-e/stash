@@ -1,78 +1,126 @@
 import { InMemoryDriver, type StashDriver } from './drivers/index.ts';
 import type { Awaitable, StashDuration, StashOptions } from './types.ts';
 
-/**
- * Stash is a simple key-value store with expiration support.
- *
- * It allows you to store values with a specific duration and automatically
- * handles expiration and cache invalidation.
- *
- * The default driver is {@link InMemoryDriver}.
- */
+interface Pending {
+	duration: StashDuration;
+	valid: boolean;
+	promise: Promise<unknown>;
+	refresh?: Promise<unknown>;
+}
+interface NamespaceState {
+	pending: Map<string, Pending>;
+	tail: Promise<unknown>;
+}
+// Coordination is shared by Stash objects using the same driver object and namespace.
+const states = new WeakMap<StashDriver, Map<string, NamespaceState>>();
+
+/** A key-value cache with expiration and background refresh during the grace period. */
 export class Stash {
 	#_base_key: string;
 	#_driver: StashDriver;
+	#state: NamespaceState;
+
 	constructor(base_key: string, opts?: StashOptions) {
 		this.#_base_key = base_key;
 		this.#_driver = opts?.driver ?? new InMemoryDriver();
+		let namespaces = states.get(this.#_driver);
+		if (!namespaces) states.set(this.#_driver, (namespaces = new Map()));
+		let state = namespaces.get(base_key);
+		if (!state) namespaces.set(base_key, (state = { pending: new Map(), tail: Promise.resolve() }));
+		this.#state = state;
 	}
 
-	#_get<T>(key: string, duration: StashDuration) {
-		return this.#_driver.get<T>(`${this.#_base_key}~${key}`, duration);
+	#key(key: string) {
+		return `${this.#_base_key}~${key}`;
 	}
 
-	#_set<T>(key: string, duration: StashDuration, value: T) {
-		return this.#_driver.set(`${this.#_base_key}~${key}`, duration, value);
+	#enqueue<T>(operation: () => Promise<T>): Promise<T> {
+		const result = this.#state.tail.then(operation);
+		this.#state.tail = result.catch(() => {});
+		return result;
 	}
 
-	#_delete(key: string) {
-		return this.#_driver.delete(`${this.#_base_key}~${key}`);
+	#invalidate(key: string) {
+		const pending = this.#state.pending.get(key);
+		if (pending) pending.valid = false;
+		this.#state.pending.delete(key);
 	}
 
-	/**
-	 * Wrap the method you'd like to cache.
-	 */
+	/** Cache a computation, sharing pending work for the same key and duration. */
 	async wrap<T>(key: string, duration: StashDuration, fn: () => Awaitable<T>): Promise<T> {
-		const { data, in_grace_period } = await this.#_get<T>(key, duration);
-		if (data) {
-			if (in_grace_period) {
-				(async () => fn())()
-					.then((res) => this.#_set(key, duration, res))
-					.catch((err) => console.error('[Grace Period Refresh Error]', err));
-			}
-			return data;
+		const existing = this.#state.pending.get(key);
+		if (existing?.duration === duration) {
+			if (!existing.refresh) return existing.promise as Promise<T>;
+			await this.#state.tail;
+			const response = await this.#_driver.get<T>(this.#key(key), duration);
+			if (response.found ?? response.data !== null) return response.data as T;
+			// Once grace ends, wait for the refresh instead of serving stale data indefinitely.
+			return existing.refresh as Promise<T>;
 		}
-		const res = await fn();
-		return this.#_set(key, duration, res);
+		this.#invalidate(key);
+		const task: Pending = { duration, valid: true, promise: Promise.resolve() };
+		const finish = () => {
+			if (this.#state.pending.get(key) === task) this.#state.pending.delete(key);
+		};
+		const compute = async () => {
+			const value = await fn();
+			await this.#enqueue(async () => {
+				if (task.valid) await this.#_driver.set(this.#key(key), duration, value);
+			});
+			return value;
+		};
+		task.promise = Promise.resolve().then(async () => {
+			let refreshing = false;
+			try {
+				await this.#state.tail;
+				const response = await this.#_driver.get<T>(this.#key(key), duration);
+				// Legacy drivers can omit found; explicit found supports cached null values.
+				if (response.found ?? response.data !== null) {
+					if (response.in_grace_period && task.valid) {
+						refreshing = true;
+						task.refresh = compute();
+						void task.refresh
+							.catch((error) => console.error('[Grace Period Refresh Error]', error))
+							.finally(finish);
+					}
+					return response.data as T;
+				}
+				return await compute();
+			} finally {
+				if (!refreshing) finish();
+			}
+		});
+		this.#state.pending.set(key, task);
+		return task.promise as Promise<T>;
 	}
 
-	/**
-	 * Get the cached value for the given key and duration.
-	 */
+	/** Get a cached value, or null for a miss. */
 	async get<T>(key: string, duration: StashDuration) {
-		const r = await this.#_get<T>(key, duration);
-		return r.data;
+		await this.#state.tail;
+		return (await this.#_driver.get<T>(this.#key(key), duration)).data;
 	}
 
-	/**
-	 * Set the cached value for the given key and duration.
-	 */
+	/** Set a cached value and supersede any pending computation for this key. */
 	async set<T>(key: string, duration: StashDuration, value: T) {
-		return this.#_set<T>(key, duration, value);
+		this.#invalidate(key);
+		return this.#enqueue(() => this.#_driver.set(this.#key(key), duration, value));
 	}
 
-	/**
-	 * Delete the cached value for the given key.
-	 */
+	/** Delete a cached value and invalidate its pending computation. */
 	async delete(key: string) {
-		return this.#_delete(key);
+		this.#invalidate(key);
+		return this.#enqueue(() => this.#_driver.delete(this.#key(key)));
 	}
 
-	/**
-	 * Clear all cached values.
-	 */
+	/** Clear this namespace only, leaving other namespaces untouched. */
 	async clear() {
-		return this.#_driver.clear();
+		for (const task of this.#state.pending.values()) task.valid = false;
+		this.#state.pending.clear();
+		return this.#enqueue(() => {
+			if (!this.#_driver.clearNamespace)
+				throw new Error('This driver does not support namespace-scoped clearing');
+			return this.#_driver.clearNamespace(this.#_base_key);
+		});
 	}
 }
 

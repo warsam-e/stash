@@ -1,70 +1,69 @@
-import { parseDate } from 'chrono-node';
 import { createClient } from 'redis';
 import type { StashDuration } from '../types.ts';
 import { StashDriver, type StashDriverOptions, type StashDriverResponse } from './base.ts';
+import { assertUnambiguousKeys, expiration, namespacePrefix } from './utils.ts';
 
-const _create_client = (url: string) => createClient({ url }).connect();
-type Client = Awaited<ReturnType<typeof _create_client>>;
+const _create_client = (url: string) =>
+	createClient({ url }).on('error', (error) => console.error('[RedisDriver] Client error:', error));
+type Client = ReturnType<typeof _create_client>;
 
-/**
- * Redis stash driver implementation.
- *
- * This driver stores data in a Redis database and is suitable for production use cases.
- */
+/** Redis cache driver. Keys retain the legacy hash format. */
 export class RedisDriver extends StashDriver {
 	client: Client;
 
-	private constructor(client: Client, opts?: StashDriverOptions) {
+	private constructor(url: string, opts?: StashDriverOptions) {
 		super(opts);
-		this.client = client;
+		this.client = _create_client(url);
 	}
 
 	static async create(url: string, opts?: StashDriverOptions) {
-		const client = await _create_client(url);
-		return new RedisDriver(client, opts);
+		// Validate options before opening a connection.
+		const driver = new RedisDriver(url, opts);
+		await driver.client.connect();
+		return driver;
 	}
 
 	async get<T>(key: string, duration: StashDuration): Promise<StashDriverResponse<T>> {
-		const [response, _duration] = await this.client.hmGet(key, ['response', 'duration']);
-		if (!response || !_duration) return { data: null, in_grace_period: false };
-
-		if (_duration !== duration) {
-			console.log('[Duration mismatch]', key, _duration, duration);
-			await this.client.hDel(key, 'response');
-			await this.client.hDel(key, 'duration');
-			return { data: null, in_grace_period: false };
+		// A transaction keeps the hash and remaining lifetime from the same version.
+		const [fields, ttl] = await this.client.multi().hmGet(key, ['response', 'duration']).pTTL(key).exec<'typed'>();
+		const [response, storedDuration] = fields;
+		if (response === null || storedDuration !== duration || ttl < 0) {
+			return { data: null, in_grace_period: false, found: false };
 		}
-
-		const ttl = await this.client.ttl(key);
-		if (ttl === -2) return { data: null, in_grace_period: false };
-
-		const inGracePeriod = ttl > 0 && ttl <= this.grace_period;
-
-		return { data: JSON.parse(response), in_grace_period: inGracePeriod };
+		return {
+			data: JSON.parse(response) as T,
+			in_grace_period: this.grace_period > 0 && ttl <= this.grace_period * 1000,
+			found: true,
+		};
 	}
-	async set<T>(key: string, duration: StashDuration, value: T): Promise<T> {
-		const _expires_at = parseDate(duration);
-		if (!_expires_at) throw new Error('Invalid duration');
-		const expires_at = +_expires_at;
-		const now = Date.now();
-		const expiresSeconds = Math.floor((expires_at - now) / 1000);
-		if (expiresSeconds <= 0) throw new Error('Invalid duration');
 
-		await this.client.hSet(key, 'response', JSON.stringify(value));
-		await this.client.hSet(key, 'duration', duration);
-		await this.client.expire(key, expiresSeconds + this.grace_period);
+	async set<T>(key: string, duration: StashDuration, value: T): Promise<T> {
+		const expiresAt = expiration(duration) + this.grace_period * 1000;
+		const response = JSON.stringify(value);
+		if (response === undefined) throw new Error('Value must be JSON serializable');
+		await this.client.multi().hSet(key, { response, duration }).pExpireAt(key, Math.ceil(expiresAt)).exec();
 		return value;
 	}
 
 	async delete(key: string): Promise<void> {
-		try {
-			await this.client.hDel(key, 'response');
-		} catch (error) {
-			console.error('[RedisDriver] Error deleting response:', error);
-		}
+		await this.client.del(key);
 	}
 
+	/** Clear the entire selected database when explicitly called on the driver. */
 	async clear(): Promise<void> {
 		await this.client.flushDb();
+	}
+
+	async clearNamespace(namespace: string): Promise<void> {
+		const prefix = namespacePrefix(namespace);
+		const pattern = `${prefix.replace(/[\\*?[\]]/g, '\\$&')}*`;
+		const keys: string[] = [];
+		for await (const batch of this.client.scanIterator({ MATCH: pattern, COUNT: 500 })) {
+			keys.push(...batch);
+		}
+		assertUnambiguousKeys(keys, prefix);
+		for (let index = 0; index < keys.length; index += 500) {
+			await this.client.del(keys.slice(index, index + 500));
+		}
 	}
 }
